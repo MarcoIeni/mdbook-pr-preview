@@ -1,0 +1,44 @@
+# .github/workflows/preview.yml
+name: Deploy PR previews
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - closed
+
+concurrency: preview-${{ github.ref }}
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Update rustup
+        run: rustup self update
+      - name: Install Rust
+        run: |
+          rustup set profile minimal
+          rustup toolchain install nightly
+          rustup default nightly
+      - name: Install mdbook
+        run: |
+          mkdir bin
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v${MDBOOK_VERSION}/mdbook-v${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz | tar -xz --directory=bin
+          echo "$(pwd)/bin" >> $GITHUB_PATH
+      - name: Report versions
+        run: |
+          rustup --version
+          rustc -Vv
+          mdbook --version
+      - name: build website
+        if: github.event.action != 'closed' # You might want to skip the build if the PR has been closed
+        run: mdbook build
+
+      - name: Deploy preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./book/
